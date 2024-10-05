@@ -23,9 +23,15 @@ typedef struct Worm {
     Segment *segments;
     size_t num_segments;
     size_t intersegment_space;
-    Vector2 velocity;
+    float direction;
+    float speed;
     Color body_color;
 } Worm;
+
+enum wall {
+    left, top, right, bottom
+} wall;
+
 
 //void log(const char*str, ...){
 //    va_list args;
@@ -58,12 +64,13 @@ void draw_segment(Segment segment) {
              BLACK);
 }
 
-Worm create_worm(Vector2 position, size_t num_segments, size_t intersegment_space, Vector2 velocity, Color body_color) {
+Worm create_worm(Vector2 position, size_t num_segments, size_t intersegment_space, float direction, float speed, Color body_color) {
     Worm worm;
     float radius = 15.0;
     worm.num_segments = num_segments;
     worm.intersegment_space = intersegment_space;
-    worm.velocity = velocity;
+    worm.direction = direction;
+    worm.speed = speed;
     worm.body_color = body_color;
     worm.segments = malloc(num_segments * sizeof(Segment));
     if (!worm.segments) {
@@ -72,7 +79,7 @@ Worm create_worm(Vector2 position, size_t num_segments, size_t intersegment_spac
     }
     Segment *segment = worm.segments;
     segment->radius = radius;
-    segment->angle = atan(velocity.y / velocity.x); // angle is in direction of initial velocity vector
+    segment->angle = worm.direction;
     segment->position = (Vector2) {position.x, position.y};
     segment->color = MAGENTA;
 
@@ -129,25 +136,21 @@ void update_worm(Worm *w) {
 //    }
 
     Vector2 newPos = forwardSeg->position;
-    newPos = Vector2Add(newPos, w->velocity);
+    newPos = Vector2Add(newPos,
+                        (Vector2){w->speed * cosf(w->direction), w->speed * sinf(w->direction)});
 
-    // determine the angle we're traveling at
-    // extend line from that angle to find intersection with wall
+    // extend the direction the worm is travelling to find intersection with wall
     // if we're close to wall, start turning around
-    angle = atan2f(w->velocity.y, w->velocity.x);
 
     // distance to right wall
-    float dr = fabsf((WIDTH - newPos.x) / cosf(angle));
+    float dr = fabsf((WIDTH - newPos.x) / cosf(w->direction));
     // distance to top wall
-    float dt = fabsf(newPos.y / (cosf(PI / 2 - angle)));
+    float dt = fabsf(newPos.y / (cosf(PI / 2 - w->direction)));
     // distance to left wall
-    float dl = fabsf(newPos.x / cosf(angle));
+    float dl = fabsf(newPos.x / cosf(w->direction));
     // distance to bottom wall
-    float db = fabsf((HEIGHT - newPos.y) / cosf(PI / 2 - angle));
+    float db = fabsf((HEIGHT - newPos.y) / cosf(PI / 2 - w->direction));
 
-    enum wall {
-        left, top, right, bottom
-    } wall;
     float nearest_distance = WIDTH * HEIGHT + 1.0;
     if (dl < nearest_distance) {
         wall = left;
@@ -166,19 +169,22 @@ void update_worm(Worm *w) {
         nearest_distance = db;
     }
 
-    if (nearest_distance < 40) { //arbitrary
+    if (nearest_distance < w->segments->radius * 1.2) { //arbitrary
+
         switch (wall) {
             case top:
-                w->velocity.y *= -1;
+                w->direction *= -1;
                 break;
             case bottom:
-                w->velocity.y *= -1;
+                w->direction *= -1;
                 break;
             case left:
-                w->velocity.x *= -1;
+                w->speed *= -1;
+                w->direction *= -1;
                 break;
             case right:
-                w->velocity.x *= -1;
+                w->speed *= -1;
+                w->direction *= -1;
                 break;
         }
     }
@@ -222,7 +228,8 @@ int main(void) {
         float x_pos = rand() % WIDTH;
         float y_pos = rand() % HEIGHT;
         worms[i] = create_worm((Vector2) {x_pos, y_pos}, 5 + rand() % 25, 15,
-                               (Vector2) {(rand() % 20) - 10, (rand() % 20) - 10},
+                               (rand() % 360) * 1.0,
+                               1 + (rand() % 15) * 1.0,
                                (Color) {rand() % 255,
                                         rand() % 255,
                                         rand() % 255, 125 + (rand() & 255 - 125)});
